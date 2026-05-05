@@ -177,6 +177,7 @@ button{
     <input id="pwd" type="password" placeholder="password"/>
     <button onclick="login()">Login</button>
   </div>
+  <div id="app" style="display:none;"></div>
 </div>
 
 <div class="container">
@@ -195,19 +196,27 @@ button{
 </div>
 
 <script>
-const supabase = supabase.createClient(
-  https://bmpokjxukepxnzaehudc.supabase.co,
-  sb_publishable_YPOPsrPisGPV6Xs1v1LlKg_IkV9933-
+const client = supabase.createClient(
+  "https://bmpokjxukepxnzaehudc.supabase.co",
+  "sb_publishable_YPOPsrPisGPV6Xs1v1LlKg_IkV9933-"
 );
 
-const PASSWORD="Kebab";
-let currentUser=null;
-let selectedDate=null;
+const PASSWORD = "Kebab";
+let currentUser = null;
+let selectedDate = null;
 
-function login(){
-  if(pwd.value!==PASSWORD) return alert("Wrong password");
-  currentUser=user.value;
-  app.style.display="block";
+function login() {
+  const user = document.getElementById("user").value;
+  const pwd = document.getElementById("pwd").value;
+
+  if (pwd !== PASSWORD) {
+    alert("Wrong password");
+    return;
+  }
+
+  currentUser = user;
+  document.getElementById("app").style.display = "block";
+
   render();
   subscribe();
 }
