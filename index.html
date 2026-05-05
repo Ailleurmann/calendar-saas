@@ -196,7 +196,7 @@ button{
 </div>
 
 <script>
-const client = supabase.createClient(
+const client = window.supabase.createClient(
   "https://bmpokjxukepxnzaehudc.supabase.co",
   "sb_publishable_YPOPsrPisGPV6Xs1v1LlKg_IkV9933-"
 );
@@ -205,6 +205,7 @@ const PASSWORD = "Kebab";
 let currentUser = null;
 let selectedDate = null;
 
+// LOGIN
 function login() {
   const user = document.getElementById("user").value;
   const pwd = document.getElementById("pwd").value;
@@ -215,54 +216,86 @@ function login() {
   }
 
   currentUser = user;
+
+  document.getElementById("login")?.style && (document.getElementById("login").style.display = "none");
   document.getElementById("app").style.display = "block";
 
   render();
   subscribe();
 }
 
+// GET EVENTS
 async function getEvents(){
-  let {data}=await supabase.from("events").select("*");
-  return data;
+  const { data, error } = await client
+    .from("events")
+    .select("*");
+
+  if (error) {
+    console.error("Supabase error:", error);
+    return [];
+  }
+
+  return data || [];
 }
 
+// RENDER CALENDAR
 async function render(){
-  const events=await getEvents();
-  months.innerHTML="";
+  const events = await getEvents();
 
-  for(let m=-1;m<=1;m++){
-    const d=new Date();
-    d.setMonth(d.getMonth()+m);
+  const months = document.getElementById("months");
+  if (!months) {
+    console.error("Missing #months div");
+    return;
+  }
 
-    const month=document.createElement("div");
-    month.className="month";
+  months.innerHTML = "";
 
-    const title=document.createElement("h3");
-    title.textContent=d.toLocaleString("fr-FR",{month:"long",year:"numeric"});
+  for (let m = -1; m <= 1; m++) {
+    const d = new Date();
+    d.setMonth(d.getMonth() + m);
+
+    const month = document.createElement("div");
+    month.className = "month";
+
+    const title = document.createElement("h3");
+    title.textContent = d.toLocaleString("fr-FR", {
+      month: "long",
+      year: "numeric"
+    });
+
     month.appendChild(title);
 
-    const grid=document.createElement("div");
-    grid.className="days";
+    const grid = document.createElement("div");
+    grid.className = "days";
 
-    const days=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    const days = new Date(
+      d.getFullYear(),
+      d.getMonth() + 1,
+      0
+    ).getDate();
 
-    for(let i=1;i<=days;i++){
-      const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(i).padStart(2,"0")}`;
+    for (let i = 1; i <= days; i++) {
 
-      const cell=document.createElement("div");
-      cell.className="day";
-      cell.innerHTML=`<div class="num">${i}</div>`;
+      const date = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(i).padStart(2,"0")}`;
 
-      events.filter(e=>e.date===date).forEach(e=>{
-        if(e.type==="conges"){
-          cell.innerHTML+=`<div class="tag ${e.user_name}">${e.user_name}</div>`;
-        }
-        if(e.type==="croissant"){
-          cell.innerHTML+=`<div class="croissant">🥐 ${e.user_name}</div>`;
-        }
-      });
+      const cell = document.createElement("div");
+      cell.className = "day";
+      cell.innerHTML = `<div class="num">${i}</div>`;
 
-      cell.onclick=()=>open(date);
+      events
+        .filter(e => e.date === date)
+        .forEach(e => {
+          if (e.type === "conges") {
+            cell.innerHTML += `<div class="tag ${e.user_name}">${e.user_name}</div>`;
+          }
+
+          if (e.type === "croissant") {
+            cell.innerHTML += `<div class="croissant">🥐 ${e.user_name}</div>`;
+          }
+        });
+
+      cell.onclick = () => open(date);
+
       grid.appendChild(cell);
     }
 
@@ -271,41 +304,61 @@ async function render(){
   }
 }
 
+// OPEN MODAL
 function open(date){
-  selectedDate=date;
-  modal.style.display="flex";
+  selectedDate = date;
+  document.getElementById("modal").style.display = "flex";
 }
 
+// CLOSE MODAL
 function closeModal(){
-  modal.style.display="none";
+  document.getElementById("modal").style.display = "none";
 }
 
+// ADD EVENT
 async function add(type){
-  await supabase.from("events").insert({
-    date:selectedDate,
+  if (!selectedDate || !currentUser) return;
+
+  const { error } = await client.from("events").insert({
+    date: selectedDate,
     type,
-    user_name:currentUser
+    user_name: currentUser
   });
+
+  if (error) console.error(error);
+
   closeModal();
   render();
 }
 
+// DELETE EVENT
 async function removeEvent(){
-  await supabase.from("events")
-  .delete()
-  .eq("date",selectedDate)
-  .eq("user_name",currentUser);
+  if (!selectedDate || !currentUser) return;
+
+  const { error } = await client
+    .from("events")
+    .delete()
+    .eq("date", selectedDate)
+    .eq("user_name", currentUser);
+
+  if (error) console.error(error);
 
   closeModal();
   render();
 }
 
+// REALTIME
 function subscribe(){
-  supabase.channel('events')
-  .on('postgres_changes',{event:'*',schema:'public',table:'events'},render)
-  .subscribe();
+  client
+    .channel("events")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "events" },
+      () => render()
+    )
+    .subscribe();
 }
 </script>
-
+  
 </body>
 </html>
