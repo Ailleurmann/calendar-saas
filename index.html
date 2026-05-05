@@ -1,34 +1,198 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-<meta charset="UTF-8">
-<title>Calendar SaaS</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>Team Calendar</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 
 <style>
-body { font-family: Inter; background:#0f172a; color:white; padding:20px;}
-.calendar { display:flex; gap:20px; }
-.day { border:1px solid #333; padding:10px; width:100px; cursor:pointer;}
+:root{
+  --bg:#0b1220;
+  --card:#111a2e;
+  --border:#1f2a44;
+  --text:#e6eaf2;
+  --muted:#94a3b8;
+  --accent:#4f7cff;
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  font-family:Inter;
+  background:var(--bg);
+  color:var(--text);
+}
+
+.header{
+  padding:24px 30px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.title{
+  font-size:18px;
+  font-weight:600;
+}
+
+.login{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+select,input,button{
+  background:var(--card);
+  border:1px solid var(--border);
+  color:var(--text);
+  padding:10px 12px;
+  border-radius:10px;
+}
+
+button{
+  background:var(--accent);
+  border:none;
+  cursor:pointer;
+  font-weight:500;
+}
+
+.container{
+  padding:30px;
+}
+
+.grid{
+  display:flex;
+  gap:16px;
+  overflow-x:auto;
+}
+
+.month{
+  min-width:320px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:16px;
+}
+
+.month h3{
+  margin:0 0 12px 0;
+  font-size:14px;
+  color:var(--muted);
+  font-weight:500;
+}
+
+.days{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:6px;
+}
+
+.day{
+  background:#0e1628;
+  border:1px solid var(--border);
+  border-radius:10px;
+  min-height:55px;
+  padding:6px;
+  font-size:12px;
+  cursor:pointer;
+  position:relative;
+  transition:.15s;
+}
+
+.day:hover{
+  transform:translateY(-2px);
+  border-color:#2d3b5f;
+}
+
+.num{
+  font-size:11px;
+  color:var(--muted);
+}
+
+.tag{
+  font-size:10px;
+  margin-top:2px;
+  padding:2px 5px;
+  border-radius:6px;
+  display:inline-block;
+}
+
+.user1{background:#3b82f6;}
+.user2{background:#22c55e;}
+.user3{background:#ef4444;}
+.user4{background:#f59e0b;}
+.user5{background:#a855f7;}
+.user6{background:#06b6d4;}
+
+.croissant{
+  font-size:10px;
+  margin-top:2px;
+}
+
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.6);
+  display:none;
+  justify-content:center;
+  align-items:center;
+}
+
+.modal-box{
+  background:var(--card);
+  border:1px solid var(--border);
+  padding:20px;
+  border-radius:14px;
+  width:260px;
+}
+
+.modal-box button{
+  width:100%;
+  margin-top:8px;
+}
 </style>
 </head>
 
 <body>
 
-<h1>📅 Team Calendar</h1>
+<div class="header">
+  <div class="title">📅 Team Calendar</div>
 
-<select id="user">
-<option>user1</option>
-<option>user2</option>
-<option>user3</option>
-<option>user4</option>
-<option>user5</option>
-<option>user6</option>
-</select>
+  <div class="login">
+    <select id="user">
+      <option>user1</option>
+      <option>user2</option>
+      <option>user3</option>
+      <option>user4</option>
+      <option>user5</option>
+      <option>user6</option>
+    </select>
+    <input id="pwd" type="password" placeholder="password"/>
+    <button onclick="login()">Login</button>
+  </div>
+</div>
 
-<button onclick="load()">Load</button>
+<div class="container">
+  <div id="app" style="display:none;">
+    <div class="grid" id="months"></div>
+  </div>
+</div>
 
-<div id="calendar" class="calendar"></div>
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <button onclick="add('conges')">🏖 Congés</button>
+    <button onclick="add('croissant')">🥐 Croissant</button>
+    <button onclick="removeEvent()">Delete</button>
+    <button onclick="closeModal()">Cancel</button>
+  </div>
+</div>
 
 <script>
 const supabase = supabase.createClient(
@@ -36,57 +200,101 @@ const supabase = supabase.createClient(
   sb_publishable_YPOPsrPisGPV6Xs1v1LlKg_IkV9933-
 );
 
-let currentUser;
+const PASSWORD="Kebab";
+let currentUser=null;
+let selectedDate=null;
 
-function load(){
-  currentUser = document.getElementById("user").value;
+function login(){
+  if(pwd.value!==PASSWORD) return alert("Wrong password");
+  currentUser=user.value;
+  app.style.display="block";
   render();
   subscribe();
 }
 
+async function getEvents(){
+  let {data}=await supabase.from("events").select("*");
+  return data;
+}
+
 async function render(){
-  const { data } = await supabase.from("events").select("*");
+  const events=await getEvents();
+  months.innerHTML="";
 
-  const cal = document.getElementById("calendar");
-  cal.innerHTML = "";
+  for(let m=-1;m<=1;m++){
+    const d=new Date();
+    d.setMonth(d.getMonth()+m);
 
-  for(let i=1;i<=30;i++){
-    let d = "2026-05-"+String(i).padStart(2,"0");
+    const month=document.createElement("div");
+    month.className="month";
 
-    let div = document.createElement("div");
-    div.className="day";
-    div.innerHTML = "<b>"+i+"</b>";
+    const title=document.createElement("h3");
+    title.textContent=d.toLocaleString("fr-FR",{month:"long",year:"numeric"});
+    month.appendChild(title);
 
-    data.filter(e=>e.date===d).forEach(e=>{
-      div.innerHTML += "<div>"+(e.type==="croissant"?"🥐":"🏖")+" "+e.user_name+"</div>";
-    });
+    const grid=document.createElement("div");
+    grid.className="days";
 
-    div.onclick = ()=>add(d);
-    cal.appendChild(div);
+    const days=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+
+    for(let i=1;i<=days;i++){
+      const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(i).padStart(2,"0")}`;
+
+      const cell=document.createElement("div");
+      cell.className="day";
+      cell.innerHTML=`<div class="num">${i}</div>`;
+
+      events.filter(e=>e.date===date).forEach(e=>{
+        if(e.type==="conges"){
+          cell.innerHTML+=`<div class="tag ${e.user_name}">${e.user_name}</div>`;
+        }
+        if(e.type==="croissant"){
+          cell.innerHTML+=`<div class="croissant">🥐 ${e.user_name}</div>`;
+        }
+      });
+
+      cell.onclick=()=>open(date);
+      grid.appendChild(cell);
+    }
+
+    month.appendChild(grid);
+    months.appendChild(month);
   }
 }
 
-async function add(date){
-  const type = prompt("1=conges 2=croissant");
-  if(!type) return;
+function open(date){
+  selectedDate=date;
+  modal.style.display="flex";
+}
 
+function closeModal(){
+  modal.style.display="none";
+}
+
+async function add(type){
   await supabase.from("events").insert({
-    date,
-    type: type==="1"?"conges":"croissant",
-    user_name: currentUser
+    date:selectedDate,
+    type,
+    user_name:currentUser
   });
-
+  closeModal();
   render();
 }
 
-// TEMPS RÉEL
+async function removeEvent(){
+  await supabase.from("events")
+  .delete()
+  .eq("date",selectedDate)
+  .eq("user_name",currentUser);
+
+  closeModal();
+  render();
+}
+
 function subscribe(){
-  supabase
-    .channel('events')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
-      render();
-    })
-    .subscribe();
+  supabase.channel('events')
+  .on('postgres_changes',{event:'*',schema:'public',table:'events'},render)
+  .subscribe();
 }
 </script>
 
